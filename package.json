@@ -1,0 +1,21 @@
+{
+  "name": "brb",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "test": "node --import tsx --test test/*.test.ts",
+    "clean": "rm -rf dist",
+    "clearData": "rm -rf data"
+  },
+  "dependencies": {
+    "@zvec/zvec": "^0.2.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.0"
+  }
+}
