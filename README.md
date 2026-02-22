@@ -37,12 +37,19 @@ You tell Claude your diet, your tech stack, your project deadlines, your stock p
 
 ## Features
 
-| | | |
-|:--|:--|:--|
-| 🧠 **Learns automatically** | 🎯 **Retrieves what matters** | 🔄 **Self-corrects** |
-| Facts, preferences, decisions extracted from every conversation | Memories scored by topic similarity, reinforcement, recency, and confidence | Say "my name is Leo", later say "actually it's Leoncio", the memory updates in place |
-| 🔒 **Private** | ⚡ **Zero wait** | 🔍 **Transparent** |
-| 100% local. PII redacted before storage. Your API key passes through, never stored | Retrieval before the request, extraction after the response in the background | `GET /memories` and `GET /memories/search?q=...` to inspect everything stored |
+🧠 **Learns automatically** Extracts facts, preferences, and decisions from every conversation
+
+🎯 **Retrieves what matters** Memories scored by topic similarity, reinforcement, recency, and confidence
+
+💰 **No API costs** Embedding and extraction run on local models through llama.cpp. Zero external calls
+
+🔄 **Self-corrects** Say "my name is Leo", later say "actually it's Leoncio", the memory updates in place
+
+🔒 **Private** 100% local. PII redacted before storage. Your API key passes through, never stored
+
+⚡ **Zero wait** Retrieval before the request, extraction after the response in the background
+
+🔍 **Transparent** `GET /memories` and `GET /memories/search?q=...` to inspect everything stored
 
 ---
 
