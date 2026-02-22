@@ -68,6 +68,8 @@ export async function route(req: IncomingMessage, res: ServerResponse) {
       category: m.fields.category,
       confidence: m.fields.confidence,
       strength: m.fields.strength,
+      mentions: m.fields.mentions,
+      last_reinforced: m.fields.last_reinforced,
       created_at: m.fields.created_at,
       last_accessed: m.fields.last_accessed,
     }));
@@ -94,6 +96,8 @@ export async function route(req: IncomingMessage, res: ServerResponse) {
       content: r.fields.content,
       category: r.fields.category,
       strength: r.fields.strength,
+      mentions: r.fields.mentions,
+      last_reinforced: r.fields.last_reinforced,
     }));
     return json(res, { query: q, count: memories.length, memories });
   }

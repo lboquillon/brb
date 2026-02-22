@@ -24,7 +24,21 @@ Rules:
 
 Each item: {"content": "short fact", "category": "preference|project_context|technical_choice|personal_info|decision|constraint|todo", "confidence": 0.0-1.0}
 
-Respond with: {"facts": [...]}`;
+Respond with: {"facts": [...]}
+
+Examples:
+
+User said: I'm using Next.js 14 with the app router for the dashboard. We switched from MySQL to Postgres last week. Oh and the deploy target is Vercel.
+Assistant said: Got it, I'll keep that in mind.
+{"facts": [{"content": "Uses Next.js 14 with app router for dashboard", "category": "technical_choice", "confidence": 0.95}, {"content": "Switched from MySQL to Postgres recently", "category": "technical_choice", "confidence": 0.9}, {"content": "Deploy target is Vercel", "category": "technical_choice", "confidence": 0.9}]}
+
+User said: I hate writing CSS unless it's Tailwind. For anything else I just use component libraries.
+Assistant said: Tailwind is great for rapid styling.
+{"facts": [{"content": "Hates writing CSS unless it's Tailwind", "category": "preference", "confidence": 0.9}, {"content": "Uses component libraries for non-Tailwind styling", "category": "preference", "confidence": 0.85}]}
+
+User said: Can you explain how the useEffect hook works?
+Assistant said: Sure, useEffect runs after render and lets you perform side effects.
+{"facts": []}`;
 
 // A message that is purely a question should not be extracted as fact.
 // "I hate avocados?" is asking, not telling. But "I hate avocados. Don't you?"

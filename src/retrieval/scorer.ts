@@ -3,6 +3,7 @@
 
 
 import { MIN_SCORE, MIN_SIMILARITY, MAX_MEMORIES } from '../config';
+import type { SearchResult } from '../storage/zvec';
 
 export interface ScoredMemory {
   id: string;
@@ -12,31 +13,12 @@ export interface ScoredMemory {
   finalScore: number;
 }
 
-export interface MemoryFields {
-  content: string;
-  category: string;
-  confidence: number;
-  strength: number;
-  created_at: string;
-  last_accessed: string;
-  archived: string;
-  archive_reason: string;
-  [key: string]: unknown; // allow extra fields from zvec
-}
+export type RawCandidate = SearchResult;
 
-export interface RawCandidate {
-  id: string;
-  score: number;
-  fields: MemoryFields;
-}
-
-const SIMILARITY_WEIGHT = 0.55;
-const STRENGTH_DECAY_WEIGHT = 0.25;
-const RECENCY_WEIGHT = 0.15;
-const CONFIDENCE_WEIGHT = 0.05;
-
-const DECAY_RATE = 0.01;
-const RECENCY_RATE = 0.005;
+const MENTIONS_SATURATION = 15;
+const DECAY_RATE = 0.009;
+const RECENCY_HALF_LIFE = 140;
+const CONFIDENCE_BONUS = 0.05;
 
 function daysSince(isoDate: string): number {
   const ms = Date.now() - new Date(isoDate).getTime();
@@ -45,26 +27,36 @@ function daysSince(isoDate: string): number {
 
 export function scoreCandidate(candidate: RawCandidate): ScoredMemory {
   const f = candidate.fields;
-  const similarity = candidate.score;
-  const strength = f.strength ?? 1.0;
-  const confidence = f.confidence ?? 0.5;
-  const createdAt = f.created_at ?? new Date().toISOString();
-  const lastAccessed = f.last_accessed ?? createdAt;
+  const sim = candidate.score;
 
-  const decay = Math.exp(-DECAY_RATE * daysSince(createdAt));
-  const recency = Math.exp(-RECENCY_RATE * daysSince(lastAccessed));
+  // Similarity gate — low-similarity garbage cannot be rescued by temporal signals
+  if (sim < MIN_SIMILARITY) {
+    return {
+      id: candidate.id,
+      content: f.content,
+      category: f.category,
+      similarity: sim,
+      finalScore: 0.0,
+    };
+  }
 
-  const finalScore =
-    (similarity * SIMILARITY_WEIGHT) +
-    (strength * decay * STRENGTH_DECAY_WEIGHT) +
-    (recency * RECENCY_WEIGHT) +
-    (confidence * CONFIDENCE_WEIGHT);
+  const mentions = f.mentions;
+  const confidence = f.confidence;
+  const lastReinforced = f.last_reinforced;
+  const lastAccessed = f.last_accessed;
+
+  const strengthNorm = Math.min(1.0, mentions / MENTIONS_SATURATION);
+  const strengthDecay = strengthNorm * Math.exp(-DECAY_RATE * daysSince(lastReinforced));
+  const recency = Math.exp(-Math.LN2 / RECENCY_HALF_LIFE * daysSince(lastAccessed));
+  const temporal = 0.65 * strengthDecay + 0.35 * recency;
+
+  const finalScore = sim * (0.68 + 0.32 * temporal) + CONFIDENCE_BONUS * confidence;
 
   return {
     id: candidate.id,
     content: f.content,
     category: f.category,
-    similarity,
+    similarity: sim,
     finalScore,
   };
 }
@@ -72,7 +64,7 @@ export function scoreCandidate(candidate: RawCandidate): ScoredMemory {
 export function scoreAndRank(candidates: RawCandidate[]): ScoredMemory[] {
   return candidates
     .map(scoreCandidate)
-    .filter(m => m.similarity >= MIN_SIMILARITY && m.finalScore >= MIN_SCORE)
+    .filter(m => m.finalScore >= MIN_SCORE)
     .sort((a, b) => b.finalScore - a.finalScore)
     .slice(0, MAX_MEMORIES);
 }

@@ -29,8 +29,10 @@ interface Message {
 // like "where were we on that thing?" that need conversation context.
 const MAX_RAW_LENGTH = 120;
 
-// Vague messages should always be rewritten regardless of length (Lesson 6).
-const VAGUE_PATTERNS = /\b(that thing|this thing|that stuff|what was|where were|where did|how did|the thing|remind me|what about|were we)\b/i;
+// Vague messages and follow-up fragments should always be rewritten regardless of
+// length (Lesson 6). Conjunctions at start ("and pears?", "or Python?", "but why?")
+// are conversational follow-ups that need prior context to make a useful search query.
+const VAGUE_PATTERNS = /\b(that thing|this thing|that stuff|what was|where were|where did|how did|the thing|remind me|what about|were we)\b|^(and|or|but|also|what about|how about)\b/i;
 
 export async function rewriteQuery(
   userMessage: string,

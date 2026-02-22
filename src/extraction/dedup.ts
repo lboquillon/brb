@@ -11,15 +11,6 @@ export interface DedupResult {
   mergedWith?: string;
 }
 
-interface NeighborFields {
-  content: string;
-  strength: number;
-  confidence: number;
-  created_at: string;
-  archived: string;
-  archive_reason: string;
-}
-
 export async function dedupAndStore(
   content: string,
   category: string,
@@ -31,23 +22,24 @@ export async function dedupAndStore(
 
   if (neighbors.length > 0) {
     const top = neighbors[0];
-    const topFields = top.fields as NeighborFields;
-    console.log(`[dedup] checking "${content}" — top neighbor: "${topFields.content}" (sim=${top.score.toFixed(3)})`);
+    console.log(`[dedup] checking "${content}" — top neighbor: "${top.fields.content}" (sim=${top.score.toFixed(3)})`);
   }
 
   for (const neighbor of neighbors) {
-    const existing = neighbor.fields as NeighborFields;
+    const existing = neighbor.fields;
 
     // Exact content match — always merge regardless of embedding similarity
     if (existing.content === content) {
-      const newStrength = Math.min(existing.strength + 0.1, 1.0);
+      const newMentions = (existing.mentions ?? 1) + 1;
       memoryStore.upsert({
         id: neighbor.id,
         vectors: { embedding },
         fields: {
           content,
           category,
-          strength: newStrength,
+          strength: 1.0,
+          mentions: newMentions,
+          last_reinforced: now,
           confidence: Math.max(confidence, existing.confidence),
           created_at: existing.created_at,
           last_accessed: now,
@@ -55,20 +47,22 @@ export async function dedupAndStore(
           archive_reason: existing.archive_reason,
         },
       });
-      console.log(`[dedup] exact match → merged into ${neighbor.id} (strength=${newStrength})`);
+      console.log(`[dedup] exact match → merged into ${neighbor.id} (mentions=${newMentions})`);
       return { action: 'merge', id: neighbor.id, mergedWith: neighbor.id };
     }
 
     // Embedding similarity above threshold — same topic, merge with newer content
     if (neighbor.score >= DEDUP_THRESHOLD) {
-      const newStrength = Math.min(existing.strength + 0.1, 1.0);
+      const newMentions = (existing.mentions ?? 1) + 1;
       memoryStore.upsert({
         id: neighbor.id,
         vectors: { embedding },
         fields: {
           content,
           category,
-          strength: newStrength,
+          strength: 1.0,
+          mentions: newMentions,
+          last_reinforced: now,
           confidence: Math.max(confidence, existing.confidence),
           created_at: existing.created_at,
           last_accessed: now,
@@ -76,7 +70,7 @@ export async function dedupAndStore(
           archive_reason: existing.archive_reason,
         },
       });
-      console.log(`[dedup] sim=${neighbor.score.toFixed(3)} → merged into ${neighbor.id}: "${existing.content}" → "${content}"`);
+      console.log(`[dedup] sim=${neighbor.score.toFixed(3)} → merged into ${neighbor.id}: "${existing.content}" → "${content}" (mentions=${newMentions})`);
       return { action: 'merge', id: neighbor.id, mergedWith: neighbor.id };
     }
   }
@@ -90,6 +84,8 @@ export async function dedupAndStore(
     category,
     confidence,
     strength: 1.0,
+    mentions: 1,
+    last_reinforced: now,
     created_at: now,
     last_accessed: now,
     archived: 'false',

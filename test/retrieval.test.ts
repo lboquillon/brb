@@ -7,6 +7,7 @@ import { scoreCandidate, scoreAndRank, type RawCandidate } from '../src/retrieva
 import { injectMemories } from '../src/retrieval/injector';
 import { rewriteQuery } from '../src/retrieval/queryRewriter';
 import { vectorSearch } from '../src/lib/zvec-utils';
+import { parseFields } from '../src/storage/zvec';
 
 // --- Scorer tests (pure math, always run) ---
 
@@ -20,7 +21,7 @@ describe('scorer', () => {
       score: 0.90,
       fields: {
         content: 'Uses PostgreSQL', category: 'technical_choice',
-        strength: 1.0, confidence: 0.9,
+        strength: 1.0, confidence: 0.9, mentions: 5, last_reinforced: daysAgo(1),
         created_at: daysAgo(7), last_accessed: daysAgo(1),
         archived: 'false', archive_reason: '',
       },
@@ -34,17 +35,17 @@ describe('scorer', () => {
       score: 0.85,
       fields: {
         content: 'Switched to PostgreSQL', category: 'technical_choice',
-        strength: 1.0, confidence: 0.85,
+        strength: 1.0, confidence: 0.85, mentions: 3, last_reinforced: daysAgo(1),
         created_at: daysAgo(14), last_accessed: daysAgo(1),
         archived: 'false', archive_reason: '',
       },
     });
     const stale = scoreCandidate({
       id: 'stale',
-      score: 0.91,
+      score: 0.85,
       fields: {
         content: 'Uses MySQL', category: 'technical_choice',
-        strength: 1.0, confidence: 0.80,
+        strength: 1.0, confidence: 0.80, mentions: 1, last_reinforced: daysAgo(90),
         created_at: daysAgo(90), last_accessed: daysAgo(90),
         archived: 'false', archive_reason: '',
       },
@@ -61,12 +62,12 @@ describe('scorer', () => {
       score: 0.5 + i * 0.025,
       fields: {
         content: `fact ${i}`, category: 'project_context',
-        strength: 1.0, confidence: 0.8,
+        strength: 1.0, confidence: 0.8, mentions: 1, last_reinforced: now,
         created_at: now, last_accessed: now,
         archived: 'false', archive_reason: '',
       },
     }));
-    const ranked = scoreAndRank(candidates as unknown as RawCandidate[]);
+    const ranked = scoreAndRank(candidates as RawCandidate[]);
     assert.ok(ranked.length <= 10, `expected <=10, got ${ranked.length}`);
     assert.ok(ranked.every(m => m.finalScore >= 0.3));
     // Should be sorted descending
@@ -81,12 +82,42 @@ describe('scorer', () => {
       score: 0.1,
       fields: {
         content: 'irrelevant', category: 'preference',
-        strength: 0.5, confidence: 0.3,
+        strength: 0.5, confidence: 0.3, mentions: 1, last_reinforced: daysAgo(200),
         created_at: daysAgo(200), last_accessed: daysAgo(200),
         archived: 'false', archive_reason: '',
       },
     }]);
     assert.equal(ranked.length, 0);
+  });
+
+  it('garbage memory with high recency rejected by similarity gate', () => {
+    const scored = scoreCandidate({
+      id: 'garbage',
+      score: 0.28,
+      fields: {
+        content: 'some junk memory', category: 'preference',
+        strength: 1.0, confidence: 0.9, mentions: 10, last_reinforced: now,
+        created_at: now, last_accessed: now,
+        archived: 'false', archive_reason: '',
+      },
+    });
+    assert.equal(scored.finalScore, 0.0, `sim=0.28 should score 0.0, got ${scored.finalScore}`);
+  });
+
+  it('reinforced memory survives despite old creation date', () => {
+    const scored = scoreCandidate({
+      id: 'reinforced',
+      score: 0.85,
+      fields: {
+        content: 'Uses PostgreSQL for everything', category: 'technical_choice',
+        strength: 1.0, confidence: 0.9, mentions: 10, last_reinforced: daysAgo(2),
+        created_at: daysAgo(180), last_accessed: daysAgo(2),
+        archived: 'false', archive_reason: '',
+      },
+    });
+    assert.ok(scored.finalScore > 0.7,
+      `reinforced memory (mentions=10, last_reinforced=2d ago) should score >0.7, got ${scored.finalScore.toFixed(3)}`
+    );
   });
 });
 
@@ -180,8 +211,12 @@ describe('retrieval with real embeddings', async () => {
 
   it('vector search + scoring returns results and ranks them', async () => {
     const queryVec = await embedClient.embed('restaurant dashboard progress');
-    const candidates = vectorSearch(col, 'embedding', queryVec, 10, "archived = 'false'");
-    const ranked = scoreAndRank(candidates as unknown as RawCandidate[]);
+    const raw = vectorSearch(col, 'embedding', queryVec, 10, "archived = 'false'");
+    // vectorSearch returns cosine DISTANCE — convert to SIMILARITY, validate fields
+    const candidates = raw.map(r => ({
+      id: r.id, score: 1 - r.score, fields: parseFields(r.fields),
+    }));
+    const ranked = scoreAndRank(candidates);
 
     assert.ok(ranked.length > 0, 'should return at least one result');
     // All results should have scores and content
@@ -200,8 +235,12 @@ describe('retrieval with real embeddings', async () => {
 
   it('database query finds database-related content in results', async () => {
     const queryVec = await embedClient.embed('what database do they use');
-    const candidates = vectorSearch(col, 'embedding', queryVec, 10, "archived = 'false'");
-    const ranked = scoreAndRank(candidates as unknown as RawCandidate[]);
+    const raw = vectorSearch(col, 'embedding', queryVec, 10, "archived = 'false'");
+    // vectorSearch returns cosine DISTANCE — convert to SIMILARITY, validate fields
+    const candidates = raw.map(r => ({
+      id: r.id, score: 1 - r.score, fields: parseFields(r.fields),
+    }));
+    const ranked = scoreAndRank(candidates);
 
     assert.ok(ranked.length > 0);
     // PostgreSQL content should appear somewhere in top results

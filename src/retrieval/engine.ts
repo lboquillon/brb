@@ -6,7 +6,7 @@ import { memoryStore } from '../storage/zvec';
 import { embedQuery, llamacppIsHealthy } from '../storage/embeddings';
 import { QUERY_REWRITE_ENABLED } from '../config';
 import { rewriteQuery } from './queryRewriter';
-import { scoreAndRank, type ScoredMemory, type RawCandidate } from './scorer';
+import { scoreAndRank, type ScoredMemory } from './scorer';
 
 interface ContentBlock {
   type: string;
@@ -40,8 +40,7 @@ export async function searchMemories(
     const queryVector = await embedQuery(searchQuery);
 
     // Step 3: zvec hybrid search — 30 candidates, exclude archived
-    // zvec returns Record<string, any> fields — cast at boundary
-    const candidates = memoryStore.search(queryVector, 30) as unknown as RawCandidate[];
+    const candidates = memoryStore.search(queryVector, 30);
 
     if (candidates.length === 0) return [];
 

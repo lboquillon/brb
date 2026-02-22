@@ -73,7 +73,7 @@ export async function chatHandler(
   touchSession(sessionId);
 
   // 1. Retrieve + inject (skip if llama.cpp down, no user message, or trivial input)
-  const worthSearching = userText && userText.trim().split(/\s+/).length >= 3;
+  const worthSearching = userText && userText.trim().split(/\s+/).length >= 2;
   let enrichedBody: Record<string, unknown> = body;
   if (worthSearching && await llamacppIsHealthy()) {
     try {

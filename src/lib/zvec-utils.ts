@@ -180,4 +180,4 @@ export {
   ZVecDataType, ZVecIndexType, ZVecMetricType, ZVecQuantizeType,
   ZVecLogLevel, ZVecLogType, ZVecCreateAndOpen, ZVecOpen, isZVecError,
 };
-export type { ZVecCollection, ZVecCollectionSchema } from '@zvec/zvec';
+export type { ZVecCollection, ZVecCollectionSchema, ZVecDoc } from '@zvec/zvec';

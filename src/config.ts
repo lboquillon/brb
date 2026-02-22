@@ -33,5 +33,5 @@ export const MAX_MEMORIES = envInt('BRB_MAX_MEMORIES', 10);
 export const MIN_SCORE = envFloat('BRB_MIN_SCORE', 0.3);
 export const MAX_MEMORY_TOKENS = envInt('BRB_MAX_MEMORY_TOKENS', 1500);
 export const DEDUP_THRESHOLD = envFloat('BRB_DEDUP_THRESHOLD', 0.82);
-export const MIN_SIMILARITY = envFloat('BRB_MIN_SIMILARITY', 0.15);
+export const MIN_SIMILARITY = envFloat('BRB_MIN_SIMILARITY', 0.30);
 export const QUERY_REWRITE_ENABLED = process.env.BRB_NO_REWRITE !== 'true';

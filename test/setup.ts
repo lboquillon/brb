@@ -47,6 +47,8 @@ export function createTestMemoryCollection() {
     .string('category', { index: true })
     .float('confidence')
     .float('strength')
+    .int('mentions')
+    .string('last_reinforced')
     .string('created_at')
     .string('last_accessed')
     .string('archived', { index: true })
@@ -64,6 +66,8 @@ export async function insertTestMemory(
     category?: string;
     confidence?: number;
     strength?: number;
+    mentions?: number;
+    last_reinforced?: string;
     created_at?: string;
     last_accessed?: string;
     archived?: string;
@@ -81,6 +85,8 @@ export async function insertTestMemory(
       category: overrides?.category ?? 'project_context',
       confidence: overrides?.confidence ?? 0.85,
       strength: overrides?.strength ?? 1.0,
+      mentions: overrides?.mentions ?? 1,
+      last_reinforced: overrides?.last_reinforced ?? now,
       created_at: overrides?.created_at ?? now,
       last_accessed: overrides?.last_accessed ?? now,
       archived: overrides?.archived ?? 'false',
