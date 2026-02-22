@@ -16,7 +16,22 @@ import { llamacppIsHealthy } from './storage/embeddings';
 // 1. Initialize zvec memory store — abort on failure
 try {
   memoryStore.init(DATA_DIR);
-  console.log(`[brb] zvec memory store initialized (${memoryStore.stats.docCount} memories)`);
+  const { docCount, indexCompleteness } = memoryStore.stats;
+  console.log(`[brb] zvec memory store initialized (${docCount} memories, indexCompleteness=${JSON.stringify(indexCompleteness)})`);
+
+  // Detect corrupt HNSW index: documents exist but index is empty
+  if (docCount > 0 && indexCompleteness?.embedding === 0) {
+    console.log('[brb] HNSW index is broken (indexCompleteness=0). Attempting optimize...');
+    try {
+      memoryStore.optimize();
+      console.log('[brb] optimize succeeded — index rebuilt');
+    } catch {
+      console.log('[brb] optimize failed — destroying and recreating collection');
+      memoryStore.destroy(DATA_DIR);
+      memoryStore.init(DATA_DIR);
+      console.log('[brb] clean collection created — memories will be rebuilt from checkpoints');
+    }
+  }
 } catch (err) {
   console.error('[brb] Failed to init memory store:', err);
   process.exit(1);

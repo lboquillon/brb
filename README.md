@@ -57,7 +57,53 @@ You tell Claude your diet, your tech stack, your project deadlines, your stock p
 
 You need **Node.js 20+** and [llama.cpp](https://github.com/ggml-org/llama.cpp) built for your machine.
 
-**1. Clone and install**
+**1. Build llama.cpp**
+
+BRB uses [llama.cpp](https://github.com/ggml-org/llama.cpp) to run two local model servers — one for embeddings and one for fact extraction. You need to build it from source:
+
+```bash
+git clone https://github.com/ggml-org/llama.cpp.git
+cd llama.cpp
+cmake -B build
+cmake --build build --config Release
+```
+
+> **Mac users:** add `-DGGML_METAL=ON` to the cmake configure step for GPU acceleration, and `-j$(sysctl -n hw.ncpu)` to build in parallel:
+> ```bash
+> cmake -B build -DGGML_METAL=ON
+> cmake --build build --config Release -j$(sysctl -n hw.ncpu)
+> ```
+
+After building, the server binary will be at `build/bin/llama-server`. By default, `start.sh` expects llama.cpp at `~/workspace/llama.cpp`. Set `LLAMA_DIR` to override:
+
+```bash
+export LLAMA_DIR=/your/path/to/llama.cpp
+```
+
+**2. Download models into llama.cpp** (~2.3GB total)
+
+Models go inside the `models/` directory of your **llama.cpp** build, not inside BRB:
+
+```
+llama.cpp/
+├── build/bin/llama-server
+└── models/
+    ├── nomic-embed-text-v1.5.Q8_0.gguf        # Embedding model (~134MB)
+    └── Qwen2.5-3B-Instruct-Q4_K_M.gguf        # Extraction model (~2.1GB)
+```
+
+```bash
+mkdir -p ~/workspace/llama.cpp/models
+cd ~/workspace/llama.cpp/models
+
+curl -L -o nomic-embed-text-v1.5.Q8_0.gguf \
+  https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.Q8_0.gguf
+
+curl -L -o Qwen2.5-3B-Instruct-Q4_K_M.gguf \
+  https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf
+```
+
+**3. Clone and install BRB**
 
 ```bash
 git clone https://github.com/lboquillon/brb.git
@@ -65,23 +111,7 @@ cd brb
 npm install
 ```
 
-**2. Download models** (~2.3GB total)
-
-```bash
-mkdir -p models && cd models
-
-curl -LO \
-  https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/\
-resolve/main/nomic-embed-text-v1.5.Q8_0.gguf
-
-curl -LO \
-  https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/\
-resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf
-
-cd ..
-```
-
-**3. Start model servers and proxy**
+**4. Start model servers and proxy**
 
 ```bash
 chmod +x start.sh
@@ -90,7 +120,23 @@ cp .env.example .env
 npm start                               # BRB on :3000
 ```
 
-**4. Point Claude at BRB**
+The `start.sh` script launches two llama.cpp server instances:
+- **Port 9090** — Embedding server (`nomic-embed-text-v1.5`) with `--embedding --pooling mean`
+- **Port 9091** — Extraction server (`Qwen2.5-3B-Instruct`) for chat completions
+
+You can also start them manually:
+
+```bash
+~/workspace/llama.cpp/build/bin/llama-server \
+  -m ~/workspace/llama.cpp/models/nomic-embed-text-v1.5.Q8_0.gguf \
+  --port 9090 --embedding --pooling mean
+
+~/workspace/llama.cpp/build/bin/llama-server \
+  -m ~/workspace/llama.cpp/models/Qwen2.5-3B-Instruct-Q4_K_M.gguf \
+  --port 9091
+```
+
+**5. Point Claude at BRB**
 
 ```bash
 export ANTHROPIC_BASE_URL=http://localhost:3000
@@ -134,7 +180,7 @@ You ◀────│◀─── stream response ───────┘
 
 **[Qwen2.5-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF)** (~2.1GB, port `:9091`) does two jobs: extract atomic facts from conversations ("User prefers dark mode", "User uses PostgreSQL") and rewrite vague follow-ups into searchable queries ("and pears?" with conversation context becomes "user pear food preference").
 
-**[zvec](https://github.com/nicoth-in/zvec)** is an embedded vector database. No server, no Docker, just a local file. Memories are stored with HNSW indexing for fast similarity search.
+**[zvec](https://zvec.org/en/)** is an embedded vector database. No server, no Docker, just a local file. Memories are stored with HNSW indexing for fast similarity search.
 
 ### Scoring
 

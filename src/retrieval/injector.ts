@@ -3,25 +3,79 @@
 
 
 import type { ScoredMemory } from './scorer';
+import { MAX_MEMORY_TOKENS } from '../config';
 
+/** Conservative BPE token estimate (~4 chars per token for English). */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+const BRACKET_MARKER_RE = /\[(?:[A-Z][A-Z _]*)\]/g;
+const CONTROL_CHAR_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f]/g;
+const MAX_MEMORY_LENGTH = 500;
+
+/** Strip dangerous patterns from memory content before injection. */
+export function sanitizeContent(content: string): string {
+  let s = content;
+  // Strip bracket markers like [USER CONTEXT], [END USER CONTEXT], [SYSTEM], etc.
+  s = s.replace(BRACKET_MARKER_RE, '');
+  // Collapse newlines and carriage returns to single spaces
+  s = s.replace(/[\r\n]+/g, ' ');
+  // Strip control characters (U+0000-U+001F except tab/newline/cr which are already handled)
+  s = s.replace(CONTROL_CHAR_RE, '');
+  // Collapse any resulting multiple spaces
+  s = s.replace(/ {2,}/g, ' ').trim();
+  // Truncate to max length
+  if (s.length > MAX_MEMORY_LENGTH) s = s.slice(0, MAX_MEMORY_LENGTH);
+  return s;
+}
+
+const HEADER = '[USER CONTEXT]\n';
+const FOOTER = '\n[END USER CONTEXT]';
+const INSTRUCTION = 'You are also this user\'s personal assistant. You know them personally. When they talk about personal topics — preferences, food, life, opinions — respond as a friend who knows them, not as a coding tool. No redirecting to code. No "let me know if there\'s anything I can help you build." Just talk to them.';
+
+/** Always-injected instruction. When memories exist, includes the context block too. */
 export function injectMemories(requestBody: Record<string, unknown>, memories: ScoredMemory[]): Record<string, unknown> {
-  if (memories.length === 0) return requestBody;
+  let prompt: string;
 
-  const memoryBlock = memories.map(m => `- ${m.content}`).join('\n');
+  if (memories.length === 0) {
+    // No memories yet — still inject the behavioral instruction
+    prompt = INSTRUCTION;
+  } else {
+    // Budget: tokens available for the memory block
+    const budget = MAX_MEMORY_TOKENS;
+    const overhead = estimateTokens(HEADER) + estimateTokens(FOOTER) + estimateTokens(INSTRUCTION);
 
-  const memoryPrompt = `[USER CONTEXT]
-${memoryBlock}
-IMPORTANT: These are established facts about this user. Respect them. If the user brings up any of these topics, respond to the topic directly. Do not deflect to software engineering or coding — just engage with what they said.
-[END USER CONTEXT]`;
+    let usedTokens = overhead;
+    const accepted: string[] = [];
+
+    // memories arrive sorted by finalScore descending (from scoreAndRank)
+    for (const m of memories) {
+      const sanitized = sanitizeContent(m.content);
+      if (sanitized.length === 0) continue;
+      const line = `- ${sanitized}\n`;
+      const lineTokens = estimateTokens(line);
+      if (usedTokens + lineTokens > budget) break;
+      usedTokens += lineTokens;
+      accepted.push(sanitized);
+    }
+
+    if (accepted.length === 0) {
+      prompt = INSTRUCTION;
+    } else {
+      const memoryBlock = accepted.map(c => `- ${c}`).join('\n');
+      prompt = `${HEADER}${memoryBlock}${FOOTER}\n${INSTRUCTION}`;
+    }
+  }
 
   const existing = requestBody.system;
 
-  // Array system (Claude Code with cache_control): append memory block AFTER
+  // Array system (Claude Code with cache_control): append AFTER
   // all existing blocks so the cached prefix stays untouched.
   if (Array.isArray(existing)) {
     return {
       ...requestBody,
-      system: [...existing, { type: 'text', text: memoryPrompt }],
+      system: [...existing, { type: 'text', text: prompt }],
     };
   }
 
@@ -30,7 +84,7 @@ IMPORTANT: These are established facts about this user. Respect them. If the use
   return {
     ...requestBody,
     system: existingStr
-      ? existingStr + '\n\n' + memoryPrompt
-      : memoryPrompt,
+      ? existingStr + '\n\n' + prompt
+      : prompt,
   };
 }

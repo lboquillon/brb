@@ -72,12 +72,12 @@ export async function chatHandler(
 
   touchSession(sessionId);
 
-  // 1. Retrieve + inject (skip if llama.cpp down, no user message, or trivial input)
+  // 1. Retrieve memories (if possible) + always inject instruction
   const worthSearching = userText && userText.trim().split(/\s+/).length >= 2;
-  let enrichedBody: Record<string, unknown> = body;
+  let memories: Awaited<ReturnType<typeof searchMemories>> = [];
   if (worthSearching && await llamacppIsHealthy()) {
     try {
-      const memories = await searchMemories(userText, messages);
+      memories = await searchMemories(userText, messages);
       if (memories.length > 0) {
         console.log(`[chatHandler] injecting ${memories.length} memories:`);
         for (const m of memories) {
@@ -86,15 +86,12 @@ export async function chatHandler(
       } else {
         console.log(`[chatHandler] no memories found for: "${userText.slice(0, 80)}"`);
       }
-      enrichedBody = injectMemories(body, memories);
-      if (process.env.BRB_DEBUG) {
-        const sys = enrichedBody.system;
-        console.log('[chatHandler] system type after inject:', Array.isArray(sys) ? `array[${(sys as unknown[]).length}]` : typeof sys);
-      }
     } catch (err) {
-      console.error('[chatHandler] retrieval failed, forwarding without memories:', err);
+      console.error('[chatHandler] retrieval failed:', err);
     }
   }
+  // Always inject — instruction goes in even with 0 memories
+  const enrichedBody = injectMemories(body, memories);
 
   // 2. Forward to Claude
   const isStreaming = body.stream === true;

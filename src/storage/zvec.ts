@@ -2,6 +2,7 @@
 // Licensed under the MIT License. See LICENSE file for details.
 
 
+import { existsSync, rmSync } from 'node:fs';
 import {
   SchemaBuilder, openOrCreate, initZVec, vectorSearch, filterSearch,
   isZVecError, ZVecDataType,
@@ -169,6 +170,19 @@ export class MemoryStore {
 
   optimize() {
     return this.collection.optimizeSync();
+  }
+
+  /** Destroy the collection and all its data. Used for index recovery. */
+  destroy(dataDir: string) {
+    try {
+      this.collection.destroySync();
+    } catch { /* already destroyed */ }
+    // destroySync removes collection data but may leave the directory.
+    // Remove it so ZVecCreateAndOpen can recreate from scratch.
+    const collectionPath = `${dataDir}/memories`;
+    if (existsSync(collectionPath)) {
+      rmSync(collectionPath, { recursive: true });
+    }
   }
 
   close() {

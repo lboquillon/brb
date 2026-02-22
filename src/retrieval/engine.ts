@@ -42,7 +42,13 @@ export async function searchMemories(
     // Step 3: zvec hybrid search — 30 candidates, exclude archived
     const candidates = memoryStore.search(queryVector, 30);
 
-    if (candidates.length === 0) return [];
+    if (candidates.length === 0) {
+      const { docCount, indexCompleteness } = memoryStore.stats;
+      console.log(`[retrieval] zvec returned 0 candidates (docs=${docCount}, indexCompleteness=${JSON.stringify(indexCompleteness)})`);
+      return [];
+    }
+
+    console.log(`[retrieval] ${candidates.length} candidates, top sim=${candidates[0].score.toFixed(3)} "${candidates[0].fields.content.slice(0, 50)}"`);
 
     // Step 4: Composite scoring, filter, rank, cut to top 10
     const scored = scoreAndRank(candidates);
