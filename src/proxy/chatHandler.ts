@@ -11,6 +11,9 @@ import { checkpointLog } from '../storage/checkpoints';
 import { extractAndStore } from '../extraction/extractor';
 import { queue } from '../queue';
 import { touchSession } from '../storage/sessions';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('chatHandler');
 
 interface ContentBlock {
   type: string;
@@ -79,15 +82,15 @@ export async function chatHandler(
     try {
       memories = await searchMemories(userText, messages);
       if (memories.length > 0) {
-        console.log(`[chatHandler] injecting ${memories.length} memories:`);
+        log.info(`injecting ${memories.length} memories`);
         for (const m of memories) {
-          console.log(`  [${m.category}] (score=${m.finalScore.toFixed(3)}, sim=${m.similarity.toFixed(3)}) ${m.content}`);
+          log.debug(`  [${m.category}] (score=${m.finalScore.toFixed(3)}, sim=${m.similarity.toFixed(3)}) ${m.content}`);
         }
       } else {
-        console.log(`[chatHandler] no memories found for: "${userText.slice(0, 80)}"`);
+        log.debug(`no memories found for: "${userText.slice(0, 80)}"`);
       }
     } catch (err) {
-      console.error('[chatHandler] retrieval failed:', err);
+      log.error('retrieval failed:', err);
     }
   }
   // Always inject — instruction goes in even with 0 memories
@@ -107,7 +110,7 @@ export async function chatHandler(
         userText, fullResponse, sessionId, cpId
       ));
     } catch (err) {
-      console.error('[chatHandler] checkpoint/extraction queue failed:', err);
+      log.error('checkpoint/extraction queue failed:', err);
     }
   }
 }

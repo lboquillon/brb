@@ -9,6 +9,9 @@ import {
   type ZVecCollection,
 } from '../lib/zvec-utils';
 import { EMBED_DIM } from '../config';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('zvec');
 
 export interface MemoryDoc {
   id: string;
@@ -94,7 +97,7 @@ export class MemoryStore {
     for (const col of migrations) {
       try {
         this.collection.addColumnSync({ fieldSchema: { name: col.name, dataType: col.dataType, nullable: false } });
-        console.log(`[zvec] migrated: added column '${col.name}'`);
+        log.info(`migrated: added column '${col.name}'`);
       } catch (err: unknown) {
         if (isZVecError(err)) {
           // ZVEC_ALREADY_EXISTS — column already present, skip

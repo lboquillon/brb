@@ -2,12 +2,16 @@
 // Licensed under the MIT License. See LICENSE file for details.
 
 
+import { createLogger } from './lib/logger';
+
+const log = createLogger('config');
+
 function envInt(key: string, fallback: number): number {
   const raw = process.env[key];
   if (raw === undefined) return fallback;
   const n = parseInt(raw, 10);
   if (Number.isNaN(n)) {
-    console.warn(`[config] invalid integer for ${key}="${raw}", using default ${fallback}`);
+    log.warn(`invalid integer for ${key}="${raw}", using default ${fallback}`);
     return fallback;
   }
   return n;
@@ -18,7 +22,7 @@ function envFloat(key: string, fallback: number): number {
   if (raw === undefined) return fallback;
   const n = parseFloat(raw);
   if (Number.isNaN(n)) {
-    console.warn(`[config] invalid float for ${key}="${raw}", using default ${fallback}`);
+    log.warn(`invalid float for ${key}="${raw}", using default ${fallback}`);
     return fallback;
   }
   return n;

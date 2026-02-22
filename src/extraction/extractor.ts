@@ -6,6 +6,9 @@ import { llmClient, embedDocument } from '../storage/embeddings';
 import { redactPII } from './safety';
 import { dedupAndStore } from './dedup';
 import { checkpointLog } from '../storage/checkpoints';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('extract');
 
 export interface ExtractedFact {
   content: string;
@@ -57,7 +60,7 @@ export async function extractFacts(
   assistantOutput: string,
 ): Promise<ExtractedFact[]> {
   if (isPureQuestion(userInput)) {
-    console.log(`[extract] skipping question input: "${userInput.slice(0, 80)}"`);
+    log.debug(`skipping question input: "${userInput.slice(0, 80)}"`);
     return [];
   }
 
@@ -75,7 +78,7 @@ export async function extractFacts(
 
     const facts = result.facts;
     if (!Array.isArray(facts)) {
-      console.log('[extract] model returned non-array facts, discarding');
+      log.warn('model returned non-array facts, discarding');
       return [];
     }
 
@@ -88,28 +91,28 @@ export async function extractFacts(
       // Must be a real fact: at least 2 words, at least 10 chars
       const words = f.content.trim().split(/\s+/);
       if (words.length < 2 || f.content.trim().length < 10) {
-        console.log(`[extract] discarding too-short fact: "${f.content}"`);
+        log.debug(`discarding too-short fact: "${f.content}"`);
         return false;
       }
       // Discard low-confidence extractions
       if (f.confidence < 0.5) {
-        console.log(`[extract] discarding low-confidence fact (${f.confidence}): "${f.content}"`);
+        log.debug(`discarding low-confidence fact (${f.confidence}): "${f.content}"`);
         return false;
       }
       // Discard speculative facts (model guessing instead of extracting)
       if (/\b(might|may|could|possibly|perhaps|considering|thinking about|wondering if)\b/i.test(f.content)) {
-        console.log(`[extract] discarding speculative fact: "${f.content}"`);
+        log.debug(`discarding speculative fact: "${f.content}"`);
         return false;
       }
       // Discard facts about the assistant, not the user
       if (/\b(assistance offered|help with|is a .*(tool|assistant|bot)|suggested|recommended)\b/i.test(f.content)) {
-        console.log(`[extract] discarding assistant-about fact: "${f.content}"`);
+        log.debug(`discarding assistant-about fact: "${f.content}"`);
         return false;
       }
       return true;
     });
   } catch (err) {
-    console.error('[extract] extraction failed:', err);
+    log.error('extraction failed:', err);
     return [];
   }
 }
@@ -122,7 +125,7 @@ export async function extractAndStore(
 ): Promise<void> {
   // Skip extraction for very short user input — not enough signal
   if (userInput.trim().split(/\s+/).length < 3) {
-    console.log(`[extract] skipping too-short input: "${userInput.slice(0, 50)}"`);
+    log.debug(`skipping too-short input: "${userInput.slice(0, 50)}"`);
     await checkpointLog.markExtracted(checkpointId);
     return;
   }
@@ -131,12 +134,12 @@ export async function extractAndStore(
     const facts = await extractFacts(userInput, assistantOutput);
 
     if (facts.length === 0) {
-      console.log(`[extract] no facts from checkpoint ${checkpointId}`);
+      log.debug(`no facts from checkpoint ${checkpointId}`);
       await checkpointLog.markExtracted(checkpointId);
       return;
     }
 
-    console.log(`[extract] ${facts.length} facts from checkpoint ${checkpointId}`);
+    log.info(`${facts.length} facts from checkpoint ${checkpointId}`);
 
     for (const fact of facts) {
       const cleanContent = redactPII(fact.content);
@@ -145,8 +148,8 @@ export async function extractAndStore(
     }
 
     await checkpointLog.markExtracted(checkpointId);
-    console.log(`[extract] checkpoint ${checkpointId} done`);
+    log.debug(`checkpoint ${checkpointId} done`);
   } catch (err) {
-    console.error(`[extract] pipeline error for checkpoint ${checkpointId}:`, err);
+    log.error(`pipeline error for checkpoint ${checkpointId}:`, err);
   }
 }

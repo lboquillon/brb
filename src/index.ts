@@ -12,28 +12,31 @@ import { extractAndStore } from './extraction/extractor';
 import { queue } from './queue';
 import { startSessionWatcher } from './storage/sessions';
 import { llamacppIsHealthy } from './storage/embeddings';
+import { createLogger } from './lib/logger';
+
+const log = createLogger('brb');
 
 // 1. Initialize zvec memory store — abort on failure
 try {
   memoryStore.init(DATA_DIR);
   const { docCount, indexCompleteness } = memoryStore.stats;
-  console.log(`[brb] zvec memory store initialized (${docCount} memories, indexCompleteness=${JSON.stringify(indexCompleteness)})`);
+  log.info(`zvec memory store initialized (${docCount} memories, indexCompleteness=${JSON.stringify(indexCompleteness)})`);
 
   // Detect corrupt HNSW index: documents exist but index is empty
   if (docCount > 0 && indexCompleteness?.embedding === 0) {
-    console.log('[brb] HNSW index is broken (indexCompleteness=0). Attempting optimize...');
+    log.warn('HNSW index is broken (indexCompleteness=0). Attempting optimize...');
     try {
       memoryStore.optimize();
-      console.log('[brb] optimize succeeded — index rebuilt');
+      log.info('optimize succeeded — index rebuilt');
     } catch {
-      console.log('[brb] optimize failed — destroying and recreating collection');
+      log.warn('optimize failed — destroying and recreating collection');
       memoryStore.destroy(DATA_DIR);
       memoryStore.init(DATA_DIR);
-      console.log('[brb] clean collection created — memories will be rebuilt from checkpoints');
+      log.info('clean collection created — memories will be rebuilt from checkpoints');
     }
   }
 } catch (err) {
-  console.error('[brb] Failed to init memory store:', err);
+  log.error('Failed to init memory store:', err);
   process.exit(1);
 }
 
@@ -44,7 +47,7 @@ const server = createServer(async (req, res) => {
   } catch (err: unknown) {
     const statusCode = err instanceof HttpError ? err.statusCode : 500;
     const message = err instanceof Error ? err.message : 'Internal server error';
-    console.error('[brb] Unhandled:', err);
+    log.error('Unhandled:', err);
     if (!res.headersSent) {
       res.writeHead(statusCode, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: message }));
@@ -59,14 +62,14 @@ async function recoverOrphanedCheckpoints() {
   try {
     const orphans = await checkpointLog.getUnextracted();
     if (orphans.length === 0) return;
-    console.log(`[brb] recovering ${orphans.length} orphaned checkpoints`);
+    log.info(`recovering ${orphans.length} orphaned checkpoints`);
     for (const cp of orphans) {
       queue.add(() => extractAndStore(
         cp.user_input, cp.assistant_output, cp.session_id, cp.id
       ));
     }
   } catch (err) {
-    console.error('[brb] checkpoint recovery failed:', err);
+    log.error('checkpoint recovery failed:', err);
   }
 }
 
@@ -75,14 +78,14 @@ const sessionInterval = startSessionWatcher();
 
 // 5. Start server — bind to localhost only
 server.listen({ port: PORT, host: '127.0.0.1', signal: ac.signal }, async () => {
-  console.log(`[brb] running on http://127.0.0.1:${PORT}`);
+  log.info(`running on http://127.0.0.1:${PORT}`);
 
   // Check llama.cpp status on startup
   const healthy = await llamacppIsHealthy();
   if (healthy) {
-    console.log('[brb] llama.cpp servers healthy (embed + extract)');
+    log.info('llama.cpp servers healthy (embed + extract)');
   } else {
-    console.log('[brb] llama.cpp servers not available — running in passthrough mode');
+    log.warn('llama.cpp servers not available — running in passthrough mode');
   }
 
   // Recover orphaned checkpoints after server is listening
@@ -92,7 +95,7 @@ server.listen({ port: PORT, host: '127.0.0.1', signal: ac.signal }, async () => 
 // Graceful shutdown
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   process.on(sig, () => {
-    console.log(`[brb] ${sig} received, shutting down...`);
+    log.info(`${sig} received, shutting down...`);
     clearInterval(sessionInterval);
     ac.abort();
     memoryStore.close();

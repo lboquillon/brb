@@ -8,6 +8,9 @@ import { memoryStore } from './storage/zvec';
 import { embedQuery, llamacppIsHealthy } from './storage/embeddings';
 import { queue } from './queue';
 import { HttpError } from './lib/errors';
+import { createLogger } from './lib/logger';
+
+const log = createLogger('router');
 
 async function readBody(req: IncomingMessage, maxBytes = 10_000_000): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
@@ -85,7 +88,7 @@ export async function route(req: IncomingMessage, res: ServerResponse) {
     try {
       vector = await embedQuery(q);
     } catch (err) {
-      console.error('[router] embed failed for search:', err);
+      log.error('embed failed for search:', err);
       return json(res, { error: 'Embedding service unavailable' }, 503);
     }
 

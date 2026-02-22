@@ -4,6 +4,9 @@
 
 import { memoryStore } from '../storage/zvec';
 import { DEDUP_THRESHOLD } from '../config';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('dedup');
 
 export interface DedupResult {
   action: 'insert' | 'merge';
@@ -22,7 +25,7 @@ export async function dedupAndStore(
 
   if (neighbors.length > 0) {
     const top = neighbors[0];
-    console.log(`[dedup] checking "${content}" — top neighbor: "${top.fields.content}" (sim=${top.score.toFixed(3)})`);
+    log.debug(`checking "${content}" — top neighbor: "${top.fields.content}" (sim=${top.score.toFixed(3)})`);
   }
 
   for (const neighbor of neighbors) {
@@ -47,7 +50,7 @@ export async function dedupAndStore(
           archive_reason: existing.archive_reason,
         },
       });
-      console.log(`[dedup] exact match → merged into ${neighbor.id} (mentions=${newMentions})`);
+      log.debug(`exact match → merged into ${neighbor.id} (mentions=${newMentions})`);
       return { action: 'merge', id: neighbor.id, mergedWith: neighbor.id };
     }
 
@@ -70,7 +73,7 @@ export async function dedupAndStore(
           archive_reason: existing.archive_reason,
         },
       });
-      console.log(`[dedup] sim=${neighbor.score.toFixed(3)} → merged into ${neighbor.id}: "${existing.content}" → "${content}" (mentions=${newMentions})`);
+      log.debug(`sim=${neighbor.score.toFixed(3)} → merged into ${neighbor.id}: "${existing.content}" → "${content}" (mentions=${newMentions})`);
       return { action: 'merge', id: neighbor.id, mergedWith: neighbor.id };
     }
   }
@@ -92,6 +95,6 @@ export async function dedupAndStore(
     archive_reason: '',
   });
 
-  console.log(`[dedup] inserted new ${id} (category=${category})`);
+  log.debug(`inserted new ${id} (category=${category})`);
   return { action: 'insert', id };
 }

@@ -7,6 +7,9 @@ import { embedQuery, llamacppIsHealthy } from '../storage/embeddings';
 import { QUERY_REWRITE_ENABLED } from '../config';
 import { rewriteQuery } from './queryRewriter';
 import { scoreAndRank, type ScoredMemory } from './scorer';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('retrieval');
 
 interface ContentBlock {
   type: string;
@@ -33,7 +36,7 @@ export async function searchMemories(
       : userMessage;
 
     if (searchQuery !== userMessage) {
-      console.log(`[retrieval] rewritten: "${userMessage.slice(0, 60)}" → "${searchQuery}"`);
+      log.debug(`rewritten: "${userMessage.slice(0, 60)}" → "${searchQuery}"`);
     }
 
     // Step 2: Embed the query
@@ -44,11 +47,11 @@ export async function searchMemories(
 
     if (candidates.length === 0) {
       const { docCount, indexCompleteness } = memoryStore.stats;
-      console.log(`[retrieval] zvec returned 0 candidates (docs=${docCount}, indexCompleteness=${JSON.stringify(indexCompleteness)})`);
+      log.debug(`zvec returned 0 candidates (docs=${docCount}, indexCompleteness=${JSON.stringify(indexCompleteness)})`);
       return [];
     }
 
-    console.log(`[retrieval] ${candidates.length} candidates, top sim=${candidates[0].score.toFixed(3)} "${candidates[0].fields.content.slice(0, 50)}"`);
+    log.debug(`${candidates.length} candidates, top sim=${candidates[0].score.toFixed(3)} "${candidates[0].fields.content.slice(0, 50)}"`);
 
     // Step 4: Composite scoring, filter, rank, cut to top 10
     const scored = scoreAndRank(candidates);
@@ -63,7 +66,7 @@ export async function searchMemories(
 
     return scored;
   } catch (err) {
-    console.error('[retrieval] search failed:', err);
+    log.error('search failed:', err);
     return [];
   }
 }

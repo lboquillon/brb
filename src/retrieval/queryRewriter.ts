@@ -3,6 +3,9 @@
 
 
 import { llmClient } from '../storage/embeddings';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('rewrite');
 
 const SYSTEM_PROMPT =
   'You write short search queries. Given a conversation, output one search query (max 10 words) to find relevant memories. Output only the query, nothing else.';
@@ -61,7 +64,7 @@ export async function rewriteQuery(
     }
     return trimmed;
   } catch (err) {
-    console.error('[rewrite] query rewrite failed, using raw message:', err);
+    log.warn('query rewrite failed, using raw message:', err);
     return userMessage;
   }
 }

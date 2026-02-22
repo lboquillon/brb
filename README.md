@@ -227,6 +227,7 @@ BRB_MIN_SCORE=0.3                     # Minimum composite score threshold
 BRB_MIN_SIMILARITY=0.30               # Similarity gate (below this = score 0)
 BRB_DEDUP_THRESHOLD=0.82              # Cosine similarity for merging duplicates
 BRB_NO_REWRITE=false                  # Skip query rewriting
+BRB_LOG_LEVEL=info                    # Log level: debug, info, warn, error
 ```
 
 <details>

@@ -2,6 +2,10 @@
 // Licensed under the MIT License. See LICENSE file for details.
 
 
+import { createLogger } from './lib/logger';
+
+const log = createLogger('queue');
+
 type Job = () => Promise<void>;
 
 export class JobQueue {
@@ -26,7 +30,7 @@ export class JobQueue {
         try {
           await job();
         } catch (err) {
-          console.error('Job failed:', err);
+          log.error('Job failed:', err);
         }
       }
     } finally {

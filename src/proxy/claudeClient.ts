@@ -4,6 +4,9 @@
 
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { pipeSSE } from '../lib/sse';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('claude');
 
 interface ContentBlock {
   type: string;
@@ -28,10 +31,10 @@ export async function forwardToClaudeStreaming(
 
   if (!response.ok) {
     const errorBody = await response.text();
-    console.error(`[claude] ${response.status} from Anthropic:`, errorBody.slice(0, 500));
+    log.error(`${response.status} from Anthropic:`, errorBody.slice(0, 500));
     if (response.status >= 500) {
       const sys = body.system;
-      console.error('[claude] system field type:', Array.isArray(sys) ? `array[${sys.length}]` : typeof sys);
+      log.error('system field type:', Array.isArray(sys) ? `array[${sys.length}]` : typeof sys);
     }
     res.writeHead(response.status, {
       'Content-Type': response.headers.get('content-type') || 'application/json',
